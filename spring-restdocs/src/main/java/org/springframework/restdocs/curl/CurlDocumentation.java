@@ -17,12 +17,15 @@
 package org.springframework.restdocs.curl;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 
-import org.springframework.restdocs.snippet.DocumentationWriter;
-import org.springframework.restdocs.snippet.DocumentationWriter.DocumentationAction;
 import org.springframework.restdocs.snippet.SnippetWritingResultHandler;
+import org.springframework.restdocs.templates.TemplateEngine;
 import org.springframework.restdocs.util.DocumentableHttpServletRequest;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.util.StringUtils;
@@ -53,15 +56,23 @@ public abstract class CurlDocumentation {
 		return new SnippetWritingResultHandler(outputDir, "curl-request") {
 
 			@Override
-			public void handle(MvcResult result, DocumentationWriter writer)
-					throws IOException {
-				writer.shellCommand(new CurlRequestDocumentationAction(writer, result));
+			public void handle(MvcResult result, PrintWriter writer) throws IOException {
+				String arguments = new CurlCommandArgumentsGenerator(result).generate();
+
+				final Map<String, Object> context = new HashMap<String, Object>();
+				context.put("arguments", arguments);
+				context.put("language", "bash");
+
+				TemplateEngine templateEngine = (TemplateEngine) result.getRequest()
+						.getAttribute(TemplateEngine.class.getName());
+
+				writer.println(templateEngine.compileTemplate("curl-request").render(
+						context));
 			}
 		};
 	}
 
-	private static final class CurlRequestDocumentationAction implements
-			DocumentationAction {
+	private static final class CurlCommandArgumentsGenerator {
 
 		private static final String SCHEME_HTTP = "http";
 
@@ -71,46 +82,42 @@ public abstract class CurlDocumentation {
 
 		private static final int STANDARD_PORT_HTTPS = 443;
 
-		private final DocumentationWriter writer;
-
 		private final MvcResult result;
 
-		CurlRequestDocumentationAction(DocumentationWriter writer, MvcResult result) {
-			this.writer = writer;
+		CurlCommandArgumentsGenerator(MvcResult result) {
 			this.result = result;
 		}
 
-		@Override
-		public void perform() throws IOException {
+		public String generate() throws IOException {
+			StringWriter command = new StringWriter();
+			PrintWriter printer = new PrintWriter(command);
 			DocumentableHttpServletRequest request = new DocumentableHttpServletRequest(
 					this.result.getRequest());
 
-			this.writer.print("curl '");
+			printer.print("'");
+			writeAuthority(request, printer);
+			writePathAndQueryString(request, printer);
+			printer.print("'");
 
-			writeAuthority(request);
-			writePathAndQueryString(request);
-
-			this.writer.print("'");
-
-			writeOptionToIncludeHeadersInOutput();
-			writeHttpMethodIfNecessary(request);
-			writeHeaders(request);
+			writeOptionToIncludeHeadersInOutput(printer);
+			writeHttpMethodIfNecessary(request, printer);
+			writeHeaders(request, printer);
 
 			if (request.isMultipartRequest()) {
-				writeParts(request);
+				writeParts(request, printer);
 			}
 
-			writeContent(request);
+			writeContent(request, printer);
 
-			this.writer.println();
+			return command.toString();
 		}
 
-		private void writeAuthority(DocumentableHttpServletRequest request) {
-			this.writer.print(String.format("%s://%s", request.getScheme(),
-					request.getHost()));
+		private void writeAuthority(DocumentableHttpServletRequest request,
+				PrintWriter writer) {
+			writer.print(String.format("%s://%s", request.getScheme(), request.getHost()));
 
 			if (isNonStandardPort(request)) {
-				this.writer.print(String.format(":%d", request.getPort()));
+				writer.print(String.format(":%d", request.getPort()));
 			}
 		}
 
@@ -119,75 +126,75 @@ public abstract class CurlDocumentation {
 					|| (SCHEME_HTTPS.equals(request.getScheme()) && request.getPort() != STANDARD_PORT_HTTPS);
 		}
 
-		private void writePathAndQueryString(DocumentableHttpServletRequest request) {
+		private void writePathAndQueryString(DocumentableHttpServletRequest request,
+				PrintWriter writer) {
 			if (StringUtils.hasText(request.getContextPath())) {
-				this.writer.print(String.format(
+				writer.print(String.format(
 						request.getContextPath().startsWith("/") ? "%s" : "/%s",
 						request.getContextPath()));
 			}
 
-			this.writer.print(request.getRequestUriWithQueryString());
+			writer.print(request.getRequestUriWithQueryString());
 		}
 
-		private void writeOptionToIncludeHeadersInOutput() {
-			this.writer.print(" -i");
+		private void writeOptionToIncludeHeadersInOutput(PrintWriter writer) {
+			writer.print(" -i");
 		}
 
-		private void writeHttpMethodIfNecessary(DocumentableHttpServletRequest request) {
+		private void writeHttpMethodIfNecessary(DocumentableHttpServletRequest request,
+				PrintWriter writer) {
 			if (!request.isGetRequest()) {
-				this.writer.print(String.format(" -X %s", request.getMethod()));
+				writer.print(String.format(" -X %s", request.getMethod()));
 			}
 		}
 
-		private void writeHeaders(DocumentableHttpServletRequest request) {
+		private void writeHeaders(DocumentableHttpServletRequest request,
+				PrintWriter writer) {
 			for (Entry<String, List<String>> entry : request.getHeaders().entrySet()) {
 				for (String header : entry.getValue()) {
-					this.writer.print(String.format(" -H '%s: %s'", entry.getKey(),
-							header));
+					writer.print(String.format(" -H '%s: %s'", entry.getKey(), header));
 				}
 			}
 		}
 
-		private void writeParts(DocumentableHttpServletRequest request)
+		private void writeParts(DocumentableHttpServletRequest request, PrintWriter writer)
 				throws IOException {
 			for (Entry<String, List<MultipartFile>> entry : request.getMultipartFiles()
 					.entrySet()) {
 				for (MultipartFile file : entry.getValue()) {
-					this.writer.printf(" -F '%s=", file.getName());
+					writer.printf(" -F '%s=", file.getName());
 					if (!StringUtils.hasText(file.getOriginalFilename())) {
-						this.writer.append(new String(file.getBytes()));
+						writer.append(new String(file.getBytes()));
 					}
 					else {
-						this.writer.printf("@%s", file.getOriginalFilename());
+						writer.printf("@%s", file.getOriginalFilename());
 					}
 
 					if (StringUtils.hasText(file.getContentType())) {
-						this.writer.append(";type=").append(file.getContentType());
+						writer.append(";type=").append(file.getContentType());
 					}
-					this.writer.append("'");
+					writer.append("'");
 				}
 			}
 
 		}
 
-		private void writeContent(DocumentableHttpServletRequest request)
-				throws IOException {
+		private void writeContent(DocumentableHttpServletRequest request,
+				PrintWriter writer) throws IOException {
 			if (request.getContentLength() > 0) {
-				this.writer
-						.print(String.format(" -d '%s'", request.getContentAsString()));
+				writer.print(String.format(" -d '%s'", request.getContentAsString()));
 			}
 			else if (request.isMultipartRequest()) {
 				for (Entry<String, String[]> entry : request.getParameterMap().entrySet()) {
 					for (String value : entry.getValue()) {
-						this.writer.print(String.format(" -F '%s=%s'", entry.getKey(),
-								value));
+						writer.print(String.format(" -F '%s=%s'", entry.getKey(), value));
 					}
 				}
 			}
 			else if (request.isPostRequest() || request.isPutRequest()) {
 				String queryString = request.getParameterMapAsQueryString();
 				if (StringUtils.hasText(queryString)) {
-					this.writer.print(String.format(" -d '%s'", queryString));
+					writer.print(String.format(" -d '%s'", queryString));
 				}
 			}
 		}
