@@ -15,10 +15,9 @@
  */
 package com.example.notes
 
-import com.fasterxml.jackson.core.JsonProcessingException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.jayway.jsonpath.JsonPath
-import java.io.UnsupportedEncodingException
+import java.net.URI
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -43,7 +42,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.net.URI
 
 @RunWith(typeof(SpringJUnit4ClassRunner))
 @SpringApplicationConfiguration(classes=typeof(RestNotesSpringDataRest))
@@ -76,7 +74,7 @@ class GettingStartedDocumentation {
 		.andExpect(jsonPath("_links.tags", is(notNullValue())))
 	}
 
-	@Test def void creatingANote() throws JsonProcessingException, Exception {
+	@Test def void creatingANote() throws Exception {
 		createNote() => [ noteUri |
 			getNote(noteUri) => [ note |
 				createTag() => [ tagUri |
@@ -118,7 +116,7 @@ class GettingStartedDocumentation {
 		.andReturn()
 	}
 
-	def URI createTag() throws Exception, JsonProcessingException {
+	def URI createTag() throws Exception {
 		this.mockMvc.perform( //
 		post("/tags") //
 		.contentType(MediaTypes::HAL_JSON) //
@@ -142,7 +140,7 @@ class GettingStartedDocumentation {
 	}
 
 	def URI createTaggedNote(URI tag) throws Exception {
-		return this.mockMvc //
+		this.mockMvc //
 		.perform(post("/notes") //
 		.contentType(MediaTypes::HAL_JSON) //
 		.content(objectMapper.writeValueAsString(#{
@@ -159,7 +157,7 @@ class GettingStartedDocumentation {
 	}
 
 	def MvcResult getTags(URI noteTagsLocation) throws Exception {
-		return this.mockMvc //
+		this.mockMvc //
 		.perform(get(noteTagsLocation)) //
 		.andExpect(status().isOk()) //
 		.andExpect(jsonPath("_embedded.tags", sizeOf(1))) //
@@ -187,15 +185,16 @@ class GettingStartedDocumentation {
 		.andReturn()
 	}
 
-	def void getTagsForExistingNote(URI noteTagsLocation) throws Exception {
+	def MvcResult getTagsForExistingNote(URI noteTagsLocation) throws Exception {
 		this.mockMvc //
 		.perform(get(noteTagsLocation)) //
 		.andExpect(status().isOk()) //
 		.andExpect(jsonPath("_embedded.tags", sizeOf(1)))
+		.andReturn
 	}
 
-	def URI getLink(MvcResult result, String rel) throws UnsupportedEncodingException {
-		return JsonPath::parse(result.getResponse() //
+	def URI getLink(MvcResult result, String rel) throws Exception {
+		JsonPath::parse(result.getResponse() //
 		.getContentAsString()) //
 		.read('''_links.«rel».href'''.toString).asUri
 	}
