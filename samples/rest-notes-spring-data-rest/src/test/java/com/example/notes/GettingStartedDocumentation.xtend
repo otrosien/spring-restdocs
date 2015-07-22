@@ -76,17 +76,17 @@ class GettingStartedDocumentation {
 
 	@Test def void creatingANote() throws Exception {
 		createNote() => [ noteUri |
-			getNote(noteUri) => [ note |
+			noteUri.getNote => [ note |
 				createTag() => [ tagUri |
-					getTag(tagUri)
-					createTaggedNote(tagUri) => [ taggedNoteUri |
-						getNote(taggedNoteUri) => [ taggedNote |
-							getTags(getLink(taggedNote, "tags"))
+					tagUri.getTag
+					tagUri.createTaggedNote => [ taggedNoteUri |
+						taggedNoteUri.getNote => [ taggedNote |
+							getLink(taggedNote, "tags").getTags
 						]
 					]
 					tagExistingNote(noteUri, tagUri)
 				]
-				getTags(getLink(note, "tags"))
+				getLink(note, "tags").getTags
 			]
 		]
 	}
