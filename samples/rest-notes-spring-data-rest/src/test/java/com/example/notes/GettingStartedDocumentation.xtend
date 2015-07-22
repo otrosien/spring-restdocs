@@ -75,9 +75,9 @@ class GettingStartedDocumentation {
 	}
 
 	@Test def void creatingANote() throws Exception {
-		createNote() => [ noteUri |
+		createNote => [ noteUri |
 			noteUri.getNote => [ note |
-				createTag() => [ tagUri |
+				createTag => [ tagUri |
 					tagUri.getTag
 					tagUri.createTaggedNote => [ taggedNoteUri |
 						taggedNoteUri.getNote => [ taggedNote |
@@ -95,9 +95,9 @@ class GettingStartedDocumentation {
 		this.mockMvc //
 		.perform(post("/notes") //
 		.contentType(MediaTypes::HAL_JSON) //
-		.content(objectMapper.writeValueAsString(#{
-			'title' -> 'Note creation with cURL',
-			'body' -> 'An example of how to create a note using cURL'
+		.content(objectMapper.writeValueAsString(#{ //
+			'title' -> 'Note creation with cURL', //
+			'body' -> 'An example of how to create a note using cURL' //
 		}))) //
 		.andExpect(status().isCreated()) //
 		.andExpect(header().string("Location", notNullValue())) //
@@ -136,7 +136,8 @@ class GettingStartedDocumentation {
 		.perform(get(tagLocation)) //
 		.andExpect(status().isOk()) //
 		.andExpect(jsonPath("name", is(notNullValue()))) //
-		.andExpect(jsonPath("_links.notes", is(notNullValue()))).andReturn()
+		.andExpect(jsonPath("_links.notes", is(notNullValue()))) //
+		.andReturn()
 	}
 
 	def URI createTaggedNote(URI tag) throws Exception {
