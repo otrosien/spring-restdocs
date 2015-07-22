@@ -9,6 +9,7 @@ buildscript {
 
 plugins {
 	id "org.asciidoctor.convert" version "1.5.2"
+	id "org.xtend.xtend" version "0.4.7"
 }
 
 apply plugin: 'java'
@@ -27,6 +28,8 @@ sourceCompatibility = 1.7
 targetCompatibility = 1.7
 
 dependencies {
+	
+	compile 'org.eclipse.xtend:org.eclipse.xtend.lib:2.8.+'
 	compile 'org.springframework.boot:spring-boot-starter-data-rest'
 	compile 'org.springframework.boot:spring-boot-starter-data-jpa'
 
