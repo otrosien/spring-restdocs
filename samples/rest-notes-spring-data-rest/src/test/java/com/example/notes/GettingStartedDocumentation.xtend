@@ -42,6 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.util.Map
 
 @RunWith(typeof(SpringJUnit4ClassRunner))
 @SpringApplicationConfiguration(classes=typeof(RestNotesSpringDataRest))
@@ -56,6 +57,10 @@ class GettingStartedDocumentation {
 
 	private def URI asUri(String s) {
 		URI.create(s)
+	}
+
+	private def String asJsonString(Map<?,?> m) {
+		objectMapper.writeValueAsString(m);
 	}
 
 	@Before def void setUp() {
@@ -76,29 +81,25 @@ class GettingStartedDocumentation {
 
 	@Test def void creatingANote() throws Exception {
 		createNote => [ noteUri |
-			noteUri.getNote => [ note |
-				createTag => [ tagUri |
-					tagUri.getTag
-					tagUri.createTaggedNote => [ taggedNoteUri |
-						taggedNoteUri.getNote => [ taggedNote |
-							getLink(taggedNote, "tags").getTags
-						]
-					]
-					tagExistingNote(noteUri, tagUri)
-				]
-				getLink(note, "tags").getTags
-			]
-		]
+		noteUri.getNote => [ note |
+		createTag => [ tagUri |
+		tagUri.getTag
+		tagUri.createTaggedNote => [ taggedNoteUri |
+		taggedNoteUri.getNote => [ taggedNote |
+		getLink(taggedNote, "tags").getTags
+		tagExistingNote(noteUri, tagUri)
+		getLink(note, "tags").getTags
+		]]]]]
 	}
 
 	def URI createNote() throws Exception {
 		this.mockMvc //
 		.perform(post("/notes") //
 		.contentType(MediaTypes::HAL_JSON) //
-		.content(objectMapper.writeValueAsString(#{ //
+		.content(#{ //
 			'title' -> 'Note creation with cURL', //
-			'body' -> 'An example of how to create a note using cURL' //
-		}))) //
+			'body'  -> 'An example of how to create a note using cURL' //
+		}.asJsonString)) //
 		.andExpect(status().isCreated()) //
 		.andExpect(header().string("Location", notNullValue())) //
 		.andReturn() //
@@ -117,12 +118,12 @@ class GettingStartedDocumentation {
 	}
 
 	def URI createTag() throws Exception {
-		this.mockMvc.perform( //
-		post("/tags") //
+		this.mockMvc //
+		.perform(post("/tags") //
 		.contentType(MediaTypes::HAL_JSON) //
-		.content(objectMapper.writeValueAsString(#{
+		.content(#{
 			"name" -> "getting-started"
-		}))) //
+		}.asJsonString)) //
 		.andExpect(status().isCreated()) //
 		.andExpect(header().string("Location", notNullValue())) //
 		.andReturn() //
@@ -131,9 +132,9 @@ class GettingStartedDocumentation {
 		.asUri
 	}
 
-	def MvcResult getTag(URI tagLocation) throws Exception {
+	def MvcResult getTag(URI tagUri) throws Exception {
 		this.mockMvc //
-		.perform(get(tagLocation)) //
+		.perform(get(tagUri)) //
 		.andExpect(status().isOk()) //
 		.andExpect(jsonPath("name", is(notNullValue()))) //
 		.andExpect(jsonPath("_links.notes", is(notNullValue()))) //
@@ -144,11 +145,11 @@ class GettingStartedDocumentation {
 		this.mockMvc //
 		.perform(post("/notes") //
 		.contentType(MediaTypes::HAL_JSON) //
-		.content(objectMapper.writeValueAsString(#{
+		.content(#{
 			'title' -> 'Tagged note creation with cURL',
-			'body' -> 'An example of how to create a tagged note using cURL',
-			'tags' -> #[tag]
-		}))) //
+			'body'  -> 'An example of how to create a tagged note using cURL',
+			'tags'  -> #[tag]
+		}.asJsonString)) //
 		.andExpect(status().isCreated()) //
 		.andExpect(header().string("Location", notNullValue())) //
 		.andReturn() //
@@ -157,9 +158,9 @@ class GettingStartedDocumentation {
 		.asUri
 	}
 
-	def MvcResult getTags(URI noteTagsLocation) throws Exception {
+	def MvcResult getTags(URI noteTagsUri) throws Exception {
 		this.mockMvc //
-		.perform(get(noteTagsLocation)) //
+		.perform(get(noteTagsUri)) //
 		.andExpect(status().isOk()) //
 		.andExpect(jsonPath("_embedded.tags", sizeOf(1))) //
 		.andReturn()
@@ -169,29 +170,21 @@ class GettingStartedDocumentation {
 		return hasSize(size)
 	}
 
-	def void tagExistingNote(URI noteLocation, URI tagLocation) throws Exception {
-		this.mockMvc.perform(patch(noteLocation) //
+	def MvcResult tagExistingNote(URI noteUri, URI tagUri) throws Exception {
+		this.mockMvc.perform(patch(noteUri) //
 		.contentType(MediaTypes::HAL_JSON) //
-		.content(objectMapper.writeValueAsString(#{
-			'tags' -> #[tagLocation]
-		}))) //
-		.andExpect(status() //
-		.isNoContent())
-	}
-
-	def MvcResult getTaggedExistingNote(URI noteLocation) throws Exception {
-		return this.mockMvc //
-		.perform(get(noteLocation)) //
-		.andExpect(status().isOk()) //
+		.content(#{
+			'tags' -> #[tagUri]
+		}.asJsonString)) //
+		.andExpect(status().isNoContent())
 		.andReturn()
 	}
 
-	def MvcResult getTagsForExistingNote(URI noteTagsLocation) throws Exception {
-		this.mockMvc //
-		.perform(get(noteTagsLocation)) //
+	def MvcResult getTaggedExistingNote(URI noteUri) throws Exception {
+		return this.mockMvc //
+		.perform(get(noteUri)) //
 		.andExpect(status().isOk()) //
-		.andExpect(jsonPath("_embedded.tags", sizeOf(1)))
-		.andReturn
+		.andReturn()
 	}
 
 	def URI getLink(MvcResult result, String rel) throws Exception {
